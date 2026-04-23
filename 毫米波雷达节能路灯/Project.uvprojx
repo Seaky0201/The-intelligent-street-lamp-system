@@ -336,7 +336,7 @@
               <MiscControls></MiscControls>
               <Define>STM32F10X_MD,USE_STDPERIPH_DRIVER</Define>
               <Undefine></Undefine>
-              <IncludePath>.\User;.\Hardware;.\Library;.\Start;.\System;.\Hardware\pwm_led;.\Hardware\usart_radar;.\Hardware\bh1750;.\Hardware\oled</IncludePath>
+              <IncludePath>.\User;.\Hardware;.\Library;.\Start;.\System;.\Hardware\pwm_led;.\Hardware\usart_radar;.\Hardware\bh1750;.\Hardware\oled;.\Hardware\aht20;.\Hardware\zigbee;.\Hardware\air790e</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -449,6 +449,36 @@
               <FileName>OLED_Font.h</FileName>
               <FileType>5</FileType>
               <FilePath>.\Hardware\oled\OLED_Font.h</FilePath>
+            </File>
+            <File>
+              <FileName>aht20.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\aht20\aht20.c</FilePath>
+            </File>
+            <File>
+              <FileName>aht20.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\aht20\aht20.h</FilePath>
+            </File>
+            <File>
+              <FileName>zigbee.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\zigbee\zigbee.c</FilePath>
+            </File>
+            <File>
+              <FileName>zigbee.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\zigbee\zigbee.h</FilePath>
+            </File>
+            <File>
+              <FileName>air790e.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\air790e\air790e.c</FilePath>
+            </File>
+            <File>
+              <FileName>air790e.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\air790e\air790e.h</FilePath>
             </File>
           </Files>
         </Group>
