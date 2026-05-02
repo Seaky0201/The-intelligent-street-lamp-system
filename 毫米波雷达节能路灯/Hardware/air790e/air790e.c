@@ -5,15 +5,9 @@
  * Air790E 4G Cat.1 通信模块驱动
  * 通信方式：USART2 (PA2-TX, PA3-RX)
  * 波特率：115200
- * 
- * 本驱动实现 AT 指令通信框架和 MQTT 协议接口，
- * 用于将路灯传感器数据通过 4G 网络上传至云平台。
- * 
- * 硬件连接：
- *   STM32 PA2 (TX) --> Air790E RXD
- *   STM32 PA3 (RX) <-- Air790E TXD
- *   Air790E VCC --> 3.8~4.2V (注意：不能直接接3.3V)
- *   Air790E GND --> GND
+ *
+ * 本驱动实现 TCP DTU 透传模式，
+ * 用于将路灯传感器数据透传至云平台。
  */
 
 // 全局接收缓冲区
@@ -123,16 +117,16 @@ static uint8_t Air790E_FindString(char *str)
 Air790E_Status Air790E_SendAT(char *cmd, char *expect, uint16_t timeout_ms)
 {
     uint16_t wait = 0;
-    
+
     Air790E_ClearRxBuf();
     Air790E_SendString(cmd);
-    
+
     // 等待响应
     while (wait < timeout_ms)
     {
         Delay_ms(10);
         wait += 10;
-        
+
         if (air790e_rx_len > 0)
         {
             // 检查是否收到期望的响应
@@ -147,7 +141,7 @@ Air790E_Status Air790E_SendAT(char *cmd, char *expect, uint16_t timeout_ms)
             }
         }
     }
-    
+
     return AIR790E_TIMEOUT;
 }
 
@@ -159,9 +153,9 @@ Air790E_Status Air790E_SendAT(char *cmd, char *expect, uint16_t timeout_ms)
 Air790E_Status Air790E_ModuleInit(void)
 {
     uint8_t retry;
-    
+
     printf("[Air790E] Module initializing...\r\n");
-    
+
     // 1. AT 握手测试 (最多重试5次)
     for (retry = 0; retry < 5; retry++)
     {
@@ -177,11 +171,11 @@ Air790E_Status Air790E_ModuleInit(void)
         printf("[Air790E] AT handshake FAILED!\r\n");
         return AIR790E_ERROR;
     }
-    
+
     // 2. 关闭回显
     Air790E_SendAT("ATE0\r\n", "OK", AIR790E_TIMEOUT_SHORT);
     Delay_ms(100);
-    
+
     // 3. 检查 SIM 卡
     if (Air790E_SendAT("AT+CPIN?\r\n", "READY", AIR790E_TIMEOUT_SHORT) != AIR790E_OK)
     {
@@ -190,7 +184,7 @@ Air790E_Status Air790E_ModuleInit(void)
     }
     printf("[Air790E] SIM card OK\r\n");
     Delay_ms(100);
-    
+
     // 4. 检查网络注册状态 (等待注网，最多30秒)
     for (retry = 0; retry < 15; retry++)
     {
@@ -208,111 +202,69 @@ Air790E_Status Air790E_ModuleInit(void)
         printf("[Air790E] Network registration FAILED!\r\n");
         return AIR790E_NO_NETWORK;
     }
-    
+
     // 5. 查询信号质量
     Air790E_SendAT("AT+CSQ\r\n", "OK", AIR790E_TIMEOUT_SHORT);
     printf("[Air790E] Signal: %s\r\n", air790e_rx_buf);
     Delay_ms(100);
-    
+
     // 6. 激活 PDP 上下文 (CGATT 附着网络)
     Air790E_SendAT("AT+CGATT=1\r\n", "OK", AIR790E_TIMEOUT_LONG);
     Delay_ms(500);
-    
+
     printf("[Air790E] Module init complete!\r\n");
     return AIR790E_OK;
 }
 
 /**
-  * @brief  MQTT 连接到服务器
+  * @brief  Air790E DTU 透传模式初始化
   * @retval Air790E_Status
   */
-Air790E_Status Air790E_MQTT_Connect(void)
+Air790E_Status Air790E_DTU_Init(void)
 {
-    char cmd_buf[200];
-    
-    printf("[Air790E] MQTT connecting...\r\n");
-    
-    // 1. 配置 MQTT 客户端 ID
-    sprintf(cmd_buf, "AT+MCONFIG=\"%s\",\"%s\",\"%s\"\r\n", 
-            MQTT_CLIENT_ID, MQTT_USERNAME, MQTT_PASSWORD);
-    if (Air790E_SendAT(cmd_buf, "OK", AIR790E_TIMEOUT_SHORT) != AIR790E_OK)
+    char cmd_buf[100];
+
+    printf("[Air790E] DTU initializing...\r\n");
+
+    // 1. 基础模块初始化 (AT握手, SIM卡, 注网等)
+    if (Air790E_ModuleInit() != AIR790E_OK)
     {
-        printf("[Air790E] MQTT config failed\r\n");
+        return AIR790E_ERROR;
+    }
+
+    // 2. 设置为透传模式 (0:非透传, 1:透传)
+    if (Air790E_SendAT("AT+CIPMODE=1\r\n", "OK", AIR790E_TIMEOUT_SHORT) != AIR790E_OK)
+    {
+        printf("[Air790E] Set CIPMODE=1 failed\r\n");
         return AIR790E_ERROR;
     }
     Delay_ms(100);
-    
-    // 2. 连接 MQTT 服务器
-    sprintf(cmd_buf, "AT+MIPSTART=\"%s\",\"%s\"\r\n", 
-            MQTT_SERVER_IP, MQTT_SERVER_PORT);
-    if (Air790E_SendAT(cmd_buf, "CONNECT OK", AIR790E_TIMEOUT_LONG) != AIR790E_OK)
+
+    // 3. 连接 TCP 服务器
+    sprintf(cmd_buf, "AT+CIPSTART=\"TCP\",\"%s\",%s\r\n", DTU_SERVER_IP, DTU_SERVER_PORT);
+    if (Air790E_SendAT(cmd_buf, "CONNECT", AIR790E_TIMEOUT_LONG) != AIR790E_OK)
     {
-        // 部分固件版本返回 OK 而非 CONNECT OK
-        if (!Air790E_FindString("OK"))
-        {
-            printf("[Air790E] MQTT TCP connect failed\r\n");
-            return AIR790E_ERROR;
-        }
+        printf("[Air790E] TCP connect failed\r\n");
+        return AIR790E_ERROR;
     }
     Delay_ms(500);
-    
-    // 3. 发送 MQTT CONNECT 报文
-    if (Air790E_SendAT("AT+MCONNECT=1,60\r\n", "CONNACK OK", AIR790E_TIMEOUT_LONG) != AIR790E_OK)
-    {
-        if (!Air790E_FindString("OK"))
-        {
-            printf("[Air790E] MQTT CONNECT failed\r\n");
-            return AIR790E_ERROR;
-        }
-    }
+
+    // 4. 进入透传状态
+    Air790E_ClearRxBuf();
+    Air790E_SendString("AT+CIPSEND\r\n");
     Delay_ms(200);
-    
-    printf("[Air790E] MQTT connected!\r\n");
+
+    printf("[Air790E] DTU Mode Ready!\r\n");
     return AIR790E_OK;
 }
 
 /**
-  * @brief  MQTT 发布消息
-  * @param  topic: 主题字符串
-  * @param  data:  消息内容 (JSON字符串)
-  * @retval Air790E_Status
+  * @brief  DTU 模式发送数据
+  * @param  data: 要发送的字符串数据
   */
-Air790E_Status Air790E_MQTT_Publish(char *topic, char *data)
+void Air790E_DTU_Send(char *data)
 {
-    char cmd_buf[300];
-    
-    // AT+MPUB="topic",0,0,"data"
-    sprintf(cmd_buf, "AT+MPUB=\"%s\",0,0,\"%s\"\r\n", topic, data);
-    
-    if (Air790E_SendAT(cmd_buf, "OK", AIR790E_TIMEOUT_SHORT) != AIR790E_OK)
-    {
-        printf("[Air790E] MQTT publish failed\r\n");
-        return AIR790E_ERROR;
-    }
-    
-    return AIR790E_OK;
-}
-
-/**
-  * @brief  MQTT 订阅主题
-  * @param  topic: 主题字符串
-  * @retval Air790E_Status
-  */
-Air790E_Status Air790E_MQTT_Subscribe(char *topic)
-{
-    char cmd_buf[150];
-    
-    // AT+MSUB="topic",0
-    sprintf(cmd_buf, "AT+MSUB=\"%s\",0\r\n", topic);
-    
-    if (Air790E_SendAT(cmd_buf, "OK", AIR790E_TIMEOUT_SHORT) != AIR790E_OK)
-    {
-        printf("[Air790E] MQTT subscribe failed\r\n");
-        return AIR790E_ERROR;
-    }
-    
-    printf("[Air790E] Subscribed: %s\r\n", topic);
-    return AIR790E_OK;
+    Air790E_SendString(data);
 }
 
 /**
@@ -322,11 +274,11 @@ Air790E_Status Air790E_MQTT_Subscribe(char *topic)
 void USART2_IRQHandler(void)
 {
     uint8_t res;
-    
+
     if (USART_GetITStatus(USART2, USART_IT_RXNE) != RESET)
     {
         res = USART_ReceiveData(USART2);
-        
+
         // 防止缓冲区溢出
         if (air790e_rx_len < AIR790E_RX_BUF_SIZE - 1)
         {
