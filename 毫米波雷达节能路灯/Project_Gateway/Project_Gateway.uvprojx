@@ -187,7 +187,7 @@
             <hadIRAM2>0</hadIRAM2>
             <hadIROM2>0</hadIROM2>
             <StupSel>8</StupSel>
-            <useUlib>0</useUlib>
+            <useUlib>1</useUlib>
             <EndSel>0</EndSel>
             <uLtcg>0</uLtcg>
             <nSecure>0</nSecure>
@@ -336,7 +336,7 @@
               <MiscControls></MiscControls>
               <Define>USE_STDPERIPH_DRIVER</Define>
               <Undefine></Undefine>
-              <IncludePath>.\User;..\Hardware\zigbee;..\Hardware\usart_radar;..\Hardware\pwm_led;..\Hardware\oled;..\Hardware\bh1750;..\Hardware\air790e;..\Hardware\aht20;..\Library;..\Start;..\System</IncludePath>
+              <IncludePath>.\User;..\Hardware\zigbee;..\Hardware\usart_radar;..\Hardware\pwm_led;..\Hardware\oled;..\Hardware\bh1750;..\Hardware\air790e;..\Hardware\air780e_dtu;..\Hardware\aht20;..\Library;..\Start;..\System</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -466,14 +466,14 @@
               <FilePath>..\Hardware\bh1750\bh1750.h</FilePath>
             </File>
             <File>
-              <FileName>air790e.c</FileName>
+              <FileName>air780e_dtu.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Hardware\air790e\air790e.c</FilePath>
+              <FilePath>..\Hardware\air780e_dtu\air780e_dtu.c</FilePath>
             </File>
             <File>
-              <FileName>air790e.h</FileName>
+              <FileName>air780e_dtu.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\Hardware\air790e\air790e.h</FilePath>
+              <FilePath>..\Hardware\air780e_dtu\air780e_dtu.h</FilePath>
             </File>
             <File>
               <FileName>aht20.c</FileName>
